@@ -121,13 +121,16 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 	}
 });
 
-test("web_run renders a compact Codex-style search row", () => {
+test("web_run renders queries and URLs until expanded", () => {
 	const tool = createWebRunTool({ sessionId: "render-test" });
 	const theme = {
 		fg: (_color: string, text: string) => text,
 		bold: (text: string) => text,
 	} as never;
-	const state: { completed?: boolean; detail?: string } = {};
+	const state: {
+		completed?: boolean;
+		activity?: Array<{ type: string; detail: string; completed: boolean }>;
+	} = {};
 	const renderContext = {
 		state,
 		lastComponent: undefined,
@@ -145,25 +148,42 @@ test("web_run renders a compact Codex-style search row", () => {
 		["• Searching the web initial question"],
 	);
 
-	tool.renderResult?.(
-		{
-			content: [{ type: "text", text: "A long answer that stays hidden" }],
-			details: {
-				webRun: {
-					activity: [
-						{
-							type: "search",
-							detail: "refined search query",
-							completed: true,
-						},
-					],
-					search_results: [{ url: "https://example.com/source" }],
-				},
+	const result = {
+		content: [
+			{ type: "text" as const, text: "A long answer that stays hidden" },
+		],
+		details: {
+			webRun: {
+				activity: [
+					{
+						type: "search",
+						detail: "refined search query",
+						completed: true,
+					},
+				],
+				search_results: [{ url: "https://example.com/source" }],
 			},
 		},
+	};
+	const collapsed = tool.renderResult?.(
+		result,
 		{ expanded: false, isPartial: false },
 		theme,
 		renderContext as never,
+	);
+	assert.deepEqual(
+		collapsed?.render(80).map((line) => line.trimEnd()),
+		["  └ https://example.com/source"],
+	);
+	const expanded = tool.renderResult?.(
+		result,
+		{ expanded: true, isPartial: false },
+		theme,
+		renderContext as never,
+	);
+	assert.deepEqual(
+		expanded?.render(80).map((line) => line.trimEnd()),
+		["  └ https://example.com/source", "", "A long answer that stays hidden"],
 	);
 	const completed = tool.renderCall?.(
 		{ search_query: [{ q: "initial question" }] },

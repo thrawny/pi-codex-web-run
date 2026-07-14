@@ -375,14 +375,18 @@ export function createWebRunTool(
 				context.state.activity = activity;
 				context.invalidate();
 			}
-			if (!expanded || isPartial) return new Container();
 			const sources = webSearchResultUrls(result.details);
-			if (sources.length === 0) return new Container();
-			const shown = sources.slice(0, 8);
-			let text = shown.map((url) => theme.fg("dim", `  └ ${url}`)).join("\n");
-			if (sources.length > shown.length)
-				text += `\n${theme.fg("muted", `  … ${sources.length - shown.length} more sources`)}`;
-			return new Text(text, 0, 0);
+			const sourceText = sources
+				.map((url) => theme.fg("dim", `  └ ${url}`))
+				.join("\n");
+			if (!expanded || isPartial)
+				return sourceText ? new Text(sourceText, 0, 0) : new Container();
+			const contentText = result.content
+				.filter((item) => item.type === "text")
+				.map((item) => item.text)
+				.join("\n");
+			const text = [sourceText, contentText].filter(Boolean).join("\n\n");
+			return text ? new Text(text, 0, 0) : new Container();
 		},
 	};
 }

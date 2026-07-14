@@ -9,8 +9,8 @@ Pi extension that adds a Codex-backed `web_run` tool without depending on Codex 
 - keeps Pi's stock tools active
 - uses Pi's selected model auth via `ctx.modelRegistry`
 - sends a direct Codex Responses web-search request from TypeScript
-- renders Codex-style `Searching the web` / `Searched the web` activity without dumping the nested answer into the transcript
-- keeps source URLs available in the expanded tool view
+- renders Codex-style `Searching the web` / `Searched the web` activity
+- keeps the collapsed tool view to queries and source URLs; the full nested response appears only when the tool is expanded
 - supports `search_query`, `image_query`, `open`, `click`, and `find`
 
 ## Install locally
@@ -48,6 +48,14 @@ Follow-up page operations reuse `ref_id` values returned by search/open:
 { "find": [{ "ref_id": "turn0view0", "pattern": "breaking change" }] }
 ```
 
+## Acknowledgements
+
+The compact web-search UX and action formatting follow the original [OpenAI Codex CLI](https://github.com/openai/codex) implementation. This package is an independent TypeScript integration and does not bundle or invoke Codex CLI.
+
 ## Notes
 
 This is intentionally smaller than `@howaboua/pi-codex-conversion`: no prompt adapter, no provider rewrite, no shell tools, no Rust binaries, and no Codex CLI subprocess.
+
+## License
+
+[MIT](LICENSE)
