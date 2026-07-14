@@ -50,11 +50,11 @@ Follow-up page operations reuse `ref_id` values returned by search/open:
 
 ## Acknowledgements
 
-The compact web-search UX and action formatting follow the original [OpenAI Codex CLI](https://github.com/openai/codex) implementation. This package is an independent TypeScript integration and does not bundle or invoke Codex CLI.
+This project is a focused derivative of [`pi-codex-conversion`](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-conversion) from the original [`howaboua-pi-stuff`](https://github.com/IgorWarzocha/howaboua-pi-stuff) codebase. Its compact web-search UX and action formatting follow [OpenAI Codex CLI](https://github.com/openai/codex).
 
 ## Notes
 
-This is intentionally smaller than `@howaboua/pi-codex-conversion`: no prompt adapter, no provider rewrite, no shell tools, no Rust binaries, and no Codex CLI subprocess.
+This package is intentionally smaller than the original `@howaboua/pi-codex-conversion`: no prompt adapter, no provider rewrite, no shell tools, no Rust binaries, and no Codex CLI subprocess.
 
 ## License
 
