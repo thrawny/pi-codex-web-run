@@ -19,5 +19,15 @@ export default function codexWebRun(pi: ExtensionAPI) {
 }
 
 export { supportsCodexWebRun } from "./auth.ts";
-export { buildResponsesWebSearchRequest, outputFromSse } from "./responses.ts";
-export { createWebRunTool, executeWebRun } from "./tool.ts";
+export {
+	buildResponsesWebSearchRequest,
+	outputFromSse,
+	outputFromSseStream,
+	type ResponsesWebSearchOutput,
+	type WebSearchActivity,
+} from "./responses.ts";
+export {
+	createWebRunTool,
+	executeWebRun,
+	webRunCallSummary,
+} from "./tool.ts";

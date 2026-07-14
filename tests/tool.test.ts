@@ -3,7 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { executeWebRun } from "../src/tool.ts";
+import {
+	createWebRunTool,
+	executeWebRun,
+	webRunCallSummary,
+} from "../src/tool.ts";
 
 function fakeJwt(accountId: string): string {
 	return [
@@ -81,13 +85,18 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 
 	try {
 		const ctx = createContext({ sessionFile });
+		const updates: string[] = [];
 		const search = await executeWebRun(
 			{ search_query: [{ q: "example" }] },
 			ctx,
 			undefined,
-			{ sessionId: "test" },
+			{
+				sessionId: "test",
+				onUpdate: (partial) => updates.push(partial.text),
+			},
 		);
 		assert.equal(search.text, "Result");
+		assert.deepEqual(updates, ["Result", "Result"]);
 		assert.equal(
 			requests[0]?.url,
 			"https://chatgpt.com/backend-api/codex/responses",
@@ -108,4 +117,75 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 		globalThis.fetch = originalFetch;
 		await rm(dir, { recursive: true, force: true });
 	}
+});
+
+test("web_run renders a compact Codex-style search row", () => {
+	const tool = createWebRunTool({ sessionId: "render-test" });
+	const theme = {
+		fg: (_color: string, text: string) => text,
+		bold: (text: string) => text,
+	} as never;
+	const state: { completed?: boolean; detail?: string } = {};
+	const renderContext = {
+		state,
+		lastComponent: undefined,
+		args: { search_query: [{ q: "initial question" }] },
+		invalidate() {},
+	};
+
+	const active = tool.renderCall?.(
+		{ search_query: [{ q: "initial question" }] },
+		theme,
+		renderContext as never,
+	);
+	assert.deepEqual(
+		active?.render(80).map((line) => line.trimEnd()),
+		["• Searching the web initial question"],
+	);
+
+	tool.renderResult?.(
+		{
+			content: [{ type: "text", text: "A long answer that stays hidden" }],
+			details: {
+				webRun: {
+					activity: [
+						{
+							type: "search",
+							detail: "refined search query",
+							completed: true,
+						},
+					],
+					search_results: [{ url: "https://example.com/source" }],
+				},
+			},
+		},
+		{ expanded: false, isPartial: false },
+		theme,
+		renderContext as never,
+	);
+	const completed = tool.renderCall?.(
+		{ search_query: [{ q: "initial question" }] },
+		theme,
+		{ ...renderContext, lastComponent: active } as never,
+	);
+	assert.deepEqual(
+		completed?.render(80).map((line) => line.trimEnd()),
+		["• Searched the web for refined search query"],
+	);
+});
+
+test("webRunCallSummary shows the search query and navigation operations", () => {
+	assert.equal(
+		webRunCallSummary({
+			search_query: [{ q: "latest Codex release" }, { q: "release notes" }],
+		}),
+		"latest Codex release · release notes",
+	);
+	assert.equal(
+		webRunCallSummary({
+			open: [{ ref_id: "turn0search0" }],
+			find: [{ ref_id: "turn0view0", pattern: "breaking change" }],
+		}),
+		"open turn0search0; find breaking change",
+	);
 });

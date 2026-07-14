@@ -3,6 +3,7 @@ import type {
 	ExtensionContext,
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import {
 	buildCodexHeaders,
@@ -15,7 +16,10 @@ import { fetchWebRunPage, findInPage } from "./page.ts";
 import {
 	buildResponsesWebSearchRequest,
 	outputFromSse,
+	outputFromSseStream,
+	type ResponsesWebSearchOutput,
 	type WebRunArgs,
+	type WebSearchActivity,
 } from "./responses.ts";
 import {
 	loadWebRunSession,
@@ -90,6 +94,7 @@ export const WEB_RUN_PARAMETERS = Type.Object(
 
 export interface WebRunToolOptions {
 	sessionId?: string | undefined;
+	onUpdate?: ((result: WebRunExecutionResult) => void) | undefined;
 }
 
 export interface WebRunExecutionResult {
@@ -128,19 +133,36 @@ export async function executeWebRun(
 		body: JSON.stringify(request),
 		signal: signal ?? undefined,
 	});
-	const body = await response.text();
-	if (!response.ok)
+	if (!response.ok) {
+		const body = await response.text();
 		throw new Error(
 			formatWebRunHttpError(provider.responsesUrl, response.status, body),
 		);
-	const output = outputFromSse(body);
+	}
+	const handleUpdate = options.onUpdate
+		? (output: ResponsesWebSearchOutput) =>
+				options.onUpdate?.(webRunSearchResult(output))
+		: undefined;
+	const output = response.body
+		? await outputFromSseStream(response.body, handleUpdate)
+		: outputFromSse(await response.text(), handleUpdate);
 	const statePath = webRunSessionStatePath(ctx, options.sessionId);
 	const state = await loadWebRunSession(statePath);
 	state.search_results = output.searchResults;
 	await saveWebRunSession(statePath, state);
+	return webRunSearchResult(output);
+}
+
+function webRunSearchResult(
+	output: ResponsesWebSearchOutput,
+): WebRunExecutionResult {
 	return {
 		text: output.text,
-		details: { output_text: output.text, search_results: output.searchResults },
+		details: {
+			output_text: output.text,
+			search_results: output.searchResults,
+			activity: output.activity,
+		},
 	};
 }
 
@@ -266,9 +288,14 @@ function resolveClickUrl(
 	return link.url;
 }
 
+interface WebRunRenderState {
+	completed?: boolean;
+	activity?: WebSearchActivity[];
+}
+
 export function createWebRunTool(
 	options: WebRunToolOptions = {},
-): ToolDefinition<typeof WEB_RUN_PARAMETERS> {
+): ToolDefinition<typeof WEB_RUN_PARAMETERS, unknown, WebRunRenderState> {
 	const toolOptions = { sessionId: randomUUID(), ...options };
 	return {
 		name: WEB_RUN_TOOL_NAME,
@@ -281,17 +308,152 @@ export function createWebRunTool(
 		parameters: WEB_RUN_PARAMETERS,
 		prepareArguments: (args) =>
 			args && typeof args === "object" ? (args as Record<string, unknown>) : {},
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			const output = await executeWebRun(
-				params as WebRunArgs,
-				ctx,
-				signal,
-				toolOptions,
-			);
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
+			let lastActivity = "";
+			const output = await executeWebRun(params as WebRunArgs, ctx, signal, {
+				...toolOptions,
+				onUpdate: (partial) => {
+					toolOptions.onUpdate?.(partial);
+					const activity = webSearchActivity(partial.details);
+					const activityKey = JSON.stringify(activity);
+					if (activityKey === lastActivity) return;
+					lastActivity = activityKey;
+					onUpdate?.({
+						content: [{ type: "text", text: "" }],
+						details: { webRun: partial.details },
+					});
+				},
+			});
 			return {
 				content: [{ type: "text", text: output.text }],
 				details: { webRun: output.details },
 			};
 		},
+		renderCall(args, theme, context) {
+			const fallbackDetail = webRunCallSummary(args as WebRunArgs);
+			const activity =
+				context.state.activity && context.state.activity.length > 0
+					? context.state.activity
+					: [
+							{
+								type: "other" as const,
+								detail: fallbackDetail,
+								completed: context.state.completed ?? false,
+							},
+						];
+			const text = activity
+				.map((item, index) => {
+					const completed = item.completed || context.state.completed === true;
+					const detail = item.detail || (index === 0 ? fallbackDetail : "");
+					const header = completed ? "Searched the web" : "Searching the web";
+					let line = theme.fg("muted", "• ");
+					line += theme.fg("toolTitle", theme.bold(header));
+					if (detail && detail !== "web request") {
+						line += completed ? " for " : " ";
+						line += theme.fg("accent", detail);
+					}
+					return line;
+				})
+				.join("\n");
+			const component =
+				context.lastComponent instanceof Text
+					? context.lastComponent
+					: new Text("", 0, 0);
+			component.setText(text);
+			return component;
+		},
+		renderResult(result, { expanded, isPartial }, theme, context) {
+			const activity = webSearchActivity(result.details);
+			const completed = !isPartial;
+			if (
+				context.state.completed !== completed ||
+				JSON.stringify(context.state.activity) !== JSON.stringify(activity)
+			) {
+				context.state.completed = completed;
+				context.state.activity = activity;
+				context.invalidate();
+			}
+			if (!expanded || isPartial) return new Container();
+			const sources = webSearchResultUrls(result.details);
+			if (sources.length === 0) return new Container();
+			const shown = sources.slice(0, 8);
+			let text = shown.map((url) => theme.fg("dim", `  └ ${url}`)).join("\n");
+			if (sources.length > shown.length)
+				text += `\n${theme.fg("muted", `  … ${sources.length - shown.length} more sources`)}`;
+			return new Text(text, 0, 0);
+		},
 	};
+}
+
+function webSearchActivity(details: unknown): WebSearchActivity[] {
+	if (!details || typeof details !== "object") return [];
+	const webRun = (details as Record<string, unknown>).webRun;
+	const record =
+		webRun && typeof webRun === "object"
+			? (webRun as Record<string, unknown>)
+			: (details as Record<string, unknown>);
+	return Array.isArray(record.activity)
+		? (record.activity as WebSearchActivity[])
+		: [];
+}
+
+function webSearchResultUrls(details: unknown): string[] {
+	if (!details || typeof details !== "object") return [];
+	const webRun = (details as Record<string, unknown>).webRun;
+	if (!webRun || typeof webRun !== "object") return [];
+	const results = (webRun as Record<string, unknown>).search_results;
+	if (!Array.isArray(results)) return [];
+	return results.flatMap((result) =>
+		result &&
+		typeof result === "object" &&
+		typeof (result as Record<string, unknown>).url === "string"
+			? [(result as Record<string, unknown>).url as string]
+			: [],
+	);
+}
+
+export function webRunCallSummary(args: WebRunArgs): string {
+	const operations: string[] = [];
+	const searchQueries = nonEmptyQueryText(args.search_query);
+	if (searchQueries.length > 0) operations.push(searchQueries.join(" · "));
+	const imageQueries = nonEmptyQueryText(args.image_query);
+	if (imageQueries.length > 0)
+		operations.push(`images: ${imageQueries.join(" · ")}`);
+	if (arrayHasItems(args.open))
+		operations.push(
+			`open ${args.open
+				.map((item) => String(item?.ref_id ?? ""))
+				.filter(Boolean)
+				.join(", ")}`,
+		);
+	if (arrayHasItems(args.click))
+		operations.push(
+			`click ${args.click
+				.map(
+					(item) => `${String(item?.ref_id ?? "")}#${String(item?.id ?? "")}`,
+				)
+				.join(", ")}`,
+		);
+	if (arrayHasItems(args.find))
+		operations.push(
+			`find ${args.find
+				.map((item) => String(item?.pattern ?? ""))
+				.filter(Boolean)
+				.join(", ")}`,
+		);
+	return (
+		operations.filter((operation) => !operation.endsWith(" ")).join("; ") ||
+		"web request"
+	);
+}
+
+function nonEmptyQueryText(value: unknown): string[] {
+	if (!Array.isArray(value)) return [];
+	return value
+		.map((item) =>
+			item && typeof item === "object"
+				? String((item as Record<string, unknown>).q ?? "").trim()
+				: "",
+		)
+		.filter(Boolean);
 }

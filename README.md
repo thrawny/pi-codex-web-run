@@ -9,6 +9,8 @@ Pi extension that adds a Codex-backed `web_run` tool without depending on Codex 
 - keeps Pi's stock tools active
 - uses Pi's selected model auth via `ctx.modelRegistry`
 - sends a direct Codex Responses web-search request from TypeScript
+- renders Codex-style `Searching the web` / `Searched the web` activity without dumping the nested answer into the transcript
+- keeps source URLs available in the expanded tool view
 - supports `search_query`, `image_query`, `open`, `click`, and `find`
 
 ## Install locally
