@@ -2,43 +2,48 @@
 	"name": "pi-codex-web-run",
 	"version": "0.1.0",
 	"description": "Pi extension that adds Codex-backed web_run without Codex CLI or native binaries",
-	"type": "module",
 	"keywords": [
-		"pi-package",
+		"codex",
+		"extension",
 		"pi",
 		"pi-coding-agent",
-		"extension",
-		"codex",
+		"pi-package",
 		"web-search"
 	],
 	"license": "MIT",
-	"pi": {
-		"extensions": [
-			"./src/index.ts"
-		]
-	},
 	"files": [
 		"src/**/*.ts",
 		"README.md",
 		"LICENSE"
 	],
+	"type": "module",
 	"scripts": {
+		"format": "oxfmt --write .",
+		"format:check": "oxfmt --check .",
+		"lint": "oxlint .",
 		"typecheck": "tsc --noEmit",
 		"test": "tsx --test tests/**/*.test.ts",
-		"check": "npm run typecheck && npm run test"
+		"check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "^0.79.4",
+		"@earendil-works/pi-tui": "^0.79.4",
+		"@types/node": "^24.10.1",
+		"oxfmt": "0.58.0",
+		"oxlint": "1.73.0",
+		"tsx": "^4.20.6",
+		"typebox": "^1.1.24",
+		"typescript": "^5.9.3"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": "*",
 		"@earendil-works/pi-tui": "*",
 		"typebox": "*"
 	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.3.8",
-		"@earendil-works/pi-coding-agent": "^0.79.4",
-		"@earendil-works/pi-tui": "^0.79.4",
-		"@types/node": "^24.10.1",
-		"tsx": "^4.20.6",
-		"typebox": "^1.1.24",
-		"typescript": "^5.9.3"
+	"packageManager": "pnpm@11.11.0",
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
 	}
 }

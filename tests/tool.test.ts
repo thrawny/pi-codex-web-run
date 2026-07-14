@@ -108,7 +108,9 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 			{ open: [{ ref_id: "turn0search0" }] },
 			ctx,
 			undefined,
-			{ sessionId: "test" },
+			{
+				sessionId: "test",
+			},
 		);
 		assert.match(opened.text, /Example page/);
 		assert.match(opened.text, /Hello world/);
@@ -166,7 +168,10 @@ test("web_run renders a compact Codex-style search row", () => {
 	const completed = tool.renderCall?.(
 		{ search_query: [{ q: "initial question" }] },
 		theme,
-		{ ...renderContext, lastComponent: active } as never,
+		{
+			...renderContext,
+			lastComponent: active,
+		} as never,
 	);
 	assert.deepEqual(
 		completed?.render(80).map((line) => line.trimEnd()),

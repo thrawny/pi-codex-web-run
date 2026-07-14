@@ -22,15 +22,19 @@ pi install /absolute/path/to/pi-codex-web-run
 For development:
 
 ```bash
+pnpm install
+pnpm check
 pi -e /absolute/path/to/pi-codex-web-run
 ```
+
+Use `pnpm format` to apply oxfmt. `pnpm check` runs oxfmt, oxlint, TypeScript, and the test suite.
 
 ## Tool shape
 
 ```json
 {
-  "search_query": [{ "q": "latest Codex CLI release notes" }],
-  "response_length": "short"
+	"search_query": [{ "q": "latest Codex CLI release notes" }],
+	"response_length": "short"
 }
 ```
 

@@ -26,8 +26,4 @@ export {
 	type ResponsesWebSearchOutput,
 	type WebSearchActivity,
 } from "./responses.ts";
-export {
-	createWebRunTool,
-	executeWebRun,
-	webRunCallSummary,
-} from "./tool.ts";
+export { createWebRunTool, executeWebRun, webRunCallSummary } from "./tool.ts";

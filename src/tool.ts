@@ -71,7 +71,9 @@ export const WEB_RUN_PARAMETERS = Type.Object(
 		response_length: Type.Optional(
 			Type.Union(
 				[Type.Literal("short"), Type.Literal("medium"), Type.Literal("long")],
-				{ description: "Answer length." },
+				{
+					description: "Answer length.",
+				},
 			),
 		),
 		settings: Type.Optional(
