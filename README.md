@@ -12,6 +12,8 @@ Pi extension that adds a Codex-backed `web_run` tool without depending on Codex 
 - renders Codex-style `Searching the web` / `Searched the web` activity
 - keeps the collapsed tool view to queries and source URLs; the full nested response appears only when the tool is expanded
 - supports `search_query`, `image_query`, `open`, `click`, and `find`
+- tells the model to cite Markdown URLs in answers and reserve turn refs for tool calls
+- converts search-response citation markers to Markdown links using URL annotations and includes source URLs and navigation refs in model-visible output
 
 ## Install locally
 
@@ -48,9 +50,19 @@ Follow-up page operations reuse `ref_id` values returned by search/open:
 { "find": [{ "ref_id": "turn0view0", "pattern": "breaking change" }] }
 ```
 
+## Citations
+
+Pi does not render OpenAI's internal citation markers. The tool guides both the main model and its nested search assistant to use Markdown source links instead.
+
+Search results include a source list in the tool's text content, not just UI metadata, so the main model can cite URLs and reuse `ref_id` values for navigation. When the backend still emits citation markers, annotation spans resolve them to links. Markers without matching annotations become `[unresolved citation]`; the tool never guesses URLs from result order.
+
+This normalizes search tool output, not the main model's messages. Answer formatting still depends on the model following the tool's citation guidance.
+
 ## Acknowledgements
 
 This project is a focused derivative of [`pi-codex-conversion`](https://github.com/IgorWarzocha/howaboua-pi-stuff/tree/main/packages/pi-codex-conversion) from the original [`howaboua-pi-stuff`](https://github.com/IgorWarzocha/howaboua-pi-stuff) codebase. Its compact web-search UX and action formatting follow [OpenAI Codex CLI](https://github.com/openai/codex).
+
+See [UPSTREAM_SYNC.md](UPSTREAM_SYNC.md) for the upstream comparison and the citation guidance brought over from its standalone web tool.
 
 ## Notes
 

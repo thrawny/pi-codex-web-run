@@ -306,6 +306,7 @@ export function createWebRunTool(
 		promptSnippet: "Search/open web with explicit web_run args.",
 		promptGuidelines: [
 			"Use web_run when current web information, source lookup, or page opening is needed.",
+			"web_run: Calls use returned turn refs; final answers use Markdown result URLs, never refs or cite….",
 		],
 		parameters: WEB_RUN_PARAMETERS,
 		prepareArguments: (args) =>

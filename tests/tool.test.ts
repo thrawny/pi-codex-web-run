@@ -95,7 +95,10 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 				onUpdate: (partial) => updates.push(partial.text),
 			},
 		);
-		assert.equal(search.text, "Result");
+		assert.equal(
+			search.text,
+			"Result\n\nSources (use ref_id only for web_run calls; cite URLs in answers):\n- turn0search0: [Example](<https://example.com/page>)",
+		);
 		assert.deepEqual(updates, ["Result", "Result"]);
 		assert.equal(
 			requests[0]?.url,
@@ -119,6 +122,18 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 		globalThis.fetch = originalFetch;
 		await rm(dir, { recursive: true, force: true });
 	}
+});
+
+test("web_run tells the model to cite URLs, not backend citation markers", () => {
+	const tool = createWebRunTool();
+	assert.ok(
+		tool.promptGuidelines?.some(
+			(guideline) =>
+				guideline.includes("web_run") &&
+				guideline.includes("Markdown result URLs") &&
+				guideline.includes("never refs"),
+		),
+	);
 });
 
 test("web_run renders queries and URLs until expanded", () => {

@@ -1,3 +1,8 @@
+import {
+	collectCitationLinks,
+	formatSearchSources,
+	type UrlCitation,
+} from "./citations.ts";
 import type { WebRunSearchResult } from "./session.ts";
 
 export type SearchResponseLength = "short" | "medium" | "long";
@@ -37,7 +42,7 @@ export function buildResponsesWebSearchRequest(
 	const request: Record<string, unknown> = {
 		model,
 		instructions:
-			"You are a concise web search assistant. Use web search, answer the query, and preserve source citations from annotations.",
+			"You are a concise web search assistant. Use web search and answer the query. Cite sources using Markdown links to their URLs, not raw citation markers. Preserve source URL annotations.",
 		input,
 		tools: [
 			{
@@ -133,6 +138,7 @@ interface ResponsesSseState {
 	text: string;
 	searchResults: WebRunSearchResult[];
 	activity: WebSearchActivity[];
+	citationLinks: Map<string, string[]>;
 }
 
 export function outputFromSse(
@@ -172,7 +178,12 @@ export async function outputFromSseStream(
 }
 
 function createResponsesSseState(): ResponsesSseState {
-	return { text: "", searchResults: [], activity: [] };
+	return {
+		text: "",
+		searchResults: [],
+		activity: [],
+		citationLinks: new Map(),
+	};
 }
 
 function processCompleteSseBlocks(
@@ -221,7 +232,7 @@ function processSseBlock(
 		changed = collectWebSearchActivity(record.item, false, state) || changed;
 	if (record.type === "response.output_item.done") {
 		const previousResultCount = state.searchResults.length;
-		collectUrlCitations(record.item, state.searchResults);
+		collectUrlCitations(record.item, state.searchResults, state.citationLinks);
 		changed = state.searchResults.length !== previousResultCount || changed;
 		changed = collectWebSearchActivity(record.item, true, state) || changed;
 	}
@@ -245,7 +256,14 @@ function finishResponsesSse(
 	if (!state.text.trim())
 		throw new Error("web_run Responses search returned no text");
 	collectPlainTextUrls(state.text, state.searchResults);
-	return snapshotResponsesSse(state);
+	return {
+		...snapshotResponsesSse(state),
+		text: formatSearchSources(
+			state.text,
+			state.searchResults,
+			state.citationLinks,
+		),
+	};
 }
 
 function snapshotResponsesSse(
@@ -321,27 +339,44 @@ function webSearchAction(
 function collectUrlCitations(
 	item: unknown,
 	results: WebRunSearchResult[],
+	links: Map<string, string[]>,
 ): void {
 	if (!item || typeof item !== "object") return;
 	const content = (item as Record<string, unknown>).content;
 	if (!Array.isArray(content)) return;
 	for (const part of content) {
 		if (!part || typeof part !== "object") continue;
-		const annotations = (part as Record<string, unknown>).annotations;
+		const partRecord = part as Record<string, unknown>;
+		const annotations = partRecord.annotations;
 		if (!Array.isArray(annotations)) continue;
+		const citations: UrlCitation[] = [];
 		for (const annotation of annotations) {
 			if (!annotation || typeof annotation !== "object") continue;
 			const record = annotation as Record<string, unknown>;
-			if (record.type !== "url_citation" || typeof record.url !== "string")
+			if (
+				record.type !== "url_citation" ||
+				typeof record.url !== "string" ||
+				!isWebUrl(record.url)
+			)
 				continue;
-			addSearchResult(
-				results,
-				record.url,
+			const title =
 				typeof record.title === "string" && record.title.trim()
 					? record.title
-					: record.url,
-			);
+					: record.url;
+			addSearchResult(results, record.url, title);
+			citations.push({
+				url: record.url,
+				title,
+				start_index:
+					typeof record.start_index === "number"
+						? record.start_index
+						: undefined,
+				end_index:
+					typeof record.end_index === "number" ? record.end_index : undefined,
+			});
 		}
+		if (typeof partRecord.text === "string")
+			collectCitationLinks(partRecord.text, citations, links);
 	}
 }
 
@@ -349,10 +384,23 @@ function collectPlainTextUrls(
 	text: string,
 	results: WebRunSearchResult[],
 ): void {
-	for (const word of text.split(/\s+/)) {
-		const url = word.replace(/[,.;:)\]}>'"]+$/g, "");
-		if (url.startsWith("http://") || url.startsWith("https://"))
-			addSearchResult(results, url, url);
+	for (const match of text.matchAll(/https?:\/\/[^\s<>"\uE200-\uE202]+/g)) {
+		let url = match[0].replace(/[,.;:\]}>'"]+$/g, "");
+		// Drop Markdown's closing delimiter, but keep balanced URL parentheses.
+		while (
+			url.endsWith(")") &&
+			(url.match(/\)/g)?.length ?? 0) > (url.match(/\(/g)?.length ?? 0)
+		)
+			url = url.slice(0, -1);
+		addSearchResult(results, url, url);
+	}
+}
+
+function isWebUrl(url: string): boolean {
+	try {
+		return ["http:", "https:"].includes(new URL(url).protocol);
+	} catch {
+		return false;
 	}
 }
 
@@ -361,7 +409,7 @@ function addSearchResult(
 	url: string,
 	title: string,
 ): void {
-	if (results.some((result) => result.url === url)) return;
+	if (!isWebUrl(url) || results.some((result) => result.url === url)) return;
 	let source = "";
 	try {
 		source = new URL(url).host;
