@@ -30,7 +30,7 @@ function createContext(
 		model: {
 			provider: "openai-codex",
 			api: "openai-codex-responses",
-			id: "gpt-5.5",
+			id: "gpt-6.1-sol",
 			baseUrl: "https://chatgpt.com/backend-api/codex/responses",
 		},
 		modelRegistry: {
@@ -49,7 +49,13 @@ function createContext(
 	} as never;
 }
 
-test("executeWebRun calls Codex Responses directly and stores search results for open", async () => {
+test("executeWebRun uses a separate search model and stores search results for open", async (t) => {
+	const previousModel = process.env.PI_CODEX_MODEL;
+	delete process.env.PI_CODEX_MODEL;
+	t.after(() => {
+		if (previousModel === undefined) delete process.env.PI_CODEX_MODEL;
+		else process.env.PI_CODEX_MODEL = previousModel;
+	});
 	const originalFetch = globalThis.fetch;
 	const dir = await mkdtemp(join(tmpdir(), "pi-codex-web-run-"));
 	const sessionFile = join(dir, "session.jsonl");
@@ -106,6 +112,12 @@ test("executeWebRun calls Codex Responses directly and stores search results for
 		);
 		assert.equal(requests[0]?.headers?.["chatgpt-account-id"], "acct-1");
 		assert.match(JSON.stringify(requests[0]?.body), /example/);
+		assert.ok(requests[0]);
+		assert.equal(
+			(requests[0].body as Record<string, unknown>).model,
+			"gpt-5.5",
+		);
+		assert.doesNotMatch(JSON.stringify(requests[0]?.body), /gpt-6\.1-sol/);
 
 		const opened = await executeWebRun(
 			{ open: [{ ref_id: "turn0search0" }] },

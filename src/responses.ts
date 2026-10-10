@@ -236,15 +236,22 @@ function processSseBlock(
 		changed = state.searchResults.length !== previousResultCount || changed;
 		changed = collectWebSearchActivity(record.item, true, state) || changed;
 	}
-	if (record.type === "response.failed") {
+	if (record.type === "response.failed" || record.type === "error") {
+		const response =
+			record.response && typeof record.response === "object"
+				? (record.response as Record<string, unknown>)
+				: undefined;
+		const rawError = response?.error ?? record.error;
 		const error =
-			record.error && typeof record.error === "object"
-				? (record.error as Record<string, unknown>)
+			rawError && typeof rawError === "object"
+				? (rawError as Record<string, unknown>)
 				: undefined;
 		throw new Error(
 			typeof error?.message === "string"
 				? error.message
-				: "Codex web search failed",
+				: typeof record.message === "string"
+					? record.message
+					: "Codex web search failed",
 		);
 	}
 	if (changed) onUpdate?.(snapshotResponsesSse(state));

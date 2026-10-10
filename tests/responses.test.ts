@@ -38,6 +38,39 @@ test("buildResponsesWebSearchRequest creates Codex Responses web search payload"
 	assert.match(JSON.stringify(request.input), /openai.com/);
 });
 
+for (const event of [
+	{ type: "error", message: "Unsupported search model" },
+	{ type: "error", error: { message: "Unsupported search model" } },
+	{ type: "response.failed", error: { message: "Unsupported search model" } },
+	{
+		type: "response.failed",
+		response: { error: { message: "Unsupported search model" } },
+	},
+]) {
+	test(`SSE preserves backend errors: ${JSON.stringify(event)}`, async () => {
+		const body = `data: ${JSON.stringify(event)}\n\n`;
+		assert.throws(() => outputFromSse(body), /Unsupported search model/);
+		await assert.rejects(
+			outputFromSseStream(new Response(body).body!),
+			/Unsupported search model/,
+		);
+	});
+}
+
+test("SSE failure after partial text is not returned as a successful answer", () => {
+	const events = [
+		{ type: "response.output_text.delta", delta: "Partial answer" },
+		{ type: "response.failed", response: { error: {} } },
+	];
+	assert.throws(
+		() =>
+			outputFromSse(
+				events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+			),
+		/Codex web search failed/,
+	);
+});
+
 test("outputFromSse collects text and URL citations", () => {
 	const body = [
 		`data: ${JSON.stringify({ type: "response.output_text.delta", delta: "See OpenAI " })}`,

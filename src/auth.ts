@@ -1,5 +1,9 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CODEX_ORIGINATOR, DEFAULT_CODEX_BASE_URL } from "./constants.ts";
+import {
+	CODEX_ORIGINATOR,
+	DEFAULT_CODEX_BASE_URL,
+	DEFAULT_WEB_SEARCH_MODEL,
+} from "./constants.ts";
 
 export const WEB_RUN_UNSUPPORTED_MESSAGE =
 	"web_run requires an OpenAI Codex-compatible Responses provider";
@@ -99,7 +103,7 @@ export async function resolveCodexWebProvider(
 		throw new Error("web_run could not resolve ChatGPT account id");
 	return {
 		responsesUrl: resolveCodexResponsesUrl(ctx.model.baseUrl),
-		model: ctx.model.id,
+		model: process.env.PI_CODEX_MODEL?.trim() || DEFAULT_WEB_SEARCH_MODEL,
 		token,
 		accountId,
 	};
