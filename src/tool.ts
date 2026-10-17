@@ -13,14 +13,12 @@ import {
 } from "./auth.ts";
 import { WEB_RUN_TOOL_NAME } from "./constants.ts";
 import { fetchWebRunPage, findInPage } from "./page.ts";
-import {
-	buildResponsesWebSearchRequest,
-	outputFromSse,
-	outputFromSseStream,
-	type ResponsesWebSearchOutput,
-	type WebRunArgs,
-	type WebSearchActivity,
+import type {
+	ResponsesWebSearchOutput,
+	WebRunArgs,
+	WebSearchActivity,
 } from "./responses.ts";
+import { buildWebSearchRequest, outputFromSearchResponse } from "./search.ts";
 import {
 	loadWebRunSession,
 	saveWebRunSession,
@@ -128,8 +126,12 @@ export async function executeWebRun(
 		return executeNavigation(args, ctx, signal, options);
 
 	const provider = await resolveCodexWebProvider(ctx);
-	const request = buildResponsesWebSearchRequest(args, provider.model);
-	const response = await fetch(provider.responsesUrl, {
+	const request = buildWebSearchRequest(args, {
+		id:
+			ctx.sessionManager?.getSessionId?.() || options.sessionId || randomUUID(),
+		model: provider.model,
+	});
+	const response = await fetch(provider.searchUrl, {
 		method: "POST",
 		headers: buildCodexHeaders(provider),
 		body: JSON.stringify(request),
@@ -138,16 +140,11 @@ export async function executeWebRun(
 	if (!response.ok) {
 		const body = await response.text();
 		throw new Error(
-			formatWebRunHttpError(provider.responsesUrl, response.status, body),
+			formatWebRunHttpError(provider.searchUrl, response.status, body),
 		);
 	}
-	const handleUpdate = options.onUpdate
-		? (output: ResponsesWebSearchOutput) =>
-				options.onUpdate?.(webRunSearchResult(output))
-		: undefined;
-	const output = response.body
-		? await outputFromSseStream(response.body, handleUpdate)
-		: outputFromSse(await response.text(), handleUpdate);
+	const output = outputFromSearchResponse(await response.json());
+	options.onUpdate?.(webRunSearchResult(output));
 	const statePath = webRunSessionStatePath(ctx, options.sessionId);
 	const state = await loadWebRunSession(statePath);
 	state.search_results = output.searchResults;
@@ -174,10 +171,10 @@ function formatWebRunHttpError(
 	body: string,
 ): string {
 	if (status === 403 && body.toLowerCase().includes("cloudflare"))
-		return `web_run Responses web search failed for ${url}: HTTP 403 Cloudflare challenge`;
+		return `web_run web search failed for ${url}: HTTP 403 Cloudflare challenge`;
 	if (status === 404 && body.includes("Not Found"))
-		return `web_run Responses web search failed for ${url}: HTTP 404 Not Found (Codex endpoint unavailable for this account/backend)`;
-	return `web_run Responses web search failed for ${url}: HTTP ${status} ${body}`;
+		return `web_run web search failed for ${url}: HTTP 404 Not Found (Codex endpoint unavailable for this account/backend)`;
+	return `web_run web search failed for ${url}: HTTP ${status} ${body}`;
 }
 
 async function executeNavigation(
@@ -302,7 +299,7 @@ export function createWebRunTool(
 	return {
 		name: WEB_RUN_TOOL_NAME,
 		label: WEB_RUN_TOOL_NAME,
-		description: "Search/open web using Codex Responses web search.",
+		description: "Search/open web using Codex web search.",
 		promptSnippet: "Search/open web with explicit web_run args.",
 		promptGuidelines: [
 			"Use web_run when current web information, source lookup, or page opening is needed.",

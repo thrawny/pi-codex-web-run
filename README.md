@@ -8,8 +8,8 @@ Pi extension that adds a Codex-backed `web_run` tool without depending on Codex 
 - activates it only when the selected model is an OpenAI Codex Responses model
 - keeps Pi's stock tools active
 - uses Pi's selected model auth via `ctx.modelRegistry`
-- searches with `gpt-5.5` independently of the selected chat model; `PI_CODEX_MODEL` overrides the search model
-- sends a direct Codex Responses web-search request from TypeScript
+- searches with upstream's `gpt-6-luna` default independently of the selected chat model; `PI_CODEX_MODEL` overrides the search model
+- sends a direct Codex `alpha/search` request from TypeScript
 - renders Codex-style `Searching the web` / `Searched the web` activity
 - keeps the collapsed tool view to queries and source URLs; the full nested response appears only when the tool is expanded
 - supports `search_query`, `image_query`, `open`, `click`, and `find`
@@ -34,10 +34,10 @@ Use `pnpm format` to apply oxfmt. `pnpm check` runs oxfmt, oxlint, TypeScript, a
 
 ## Search model
 
-The Codex Responses endpoint does not accept every model available for chat in Pi. Changing Pi's chat model does not change the search model. To override the default, launch Pi with `PI_CODEX_MODEL` set to a model your Codex account supports:
+Search follows upstream's `gpt-6-luna` default and `alpha/search` endpoint; it does not send a Responses chat request. Changing Pi's chat model does not change the search model. To override the default, launch Pi with `PI_CODEX_MODEL` set to a model your Codex account supports:
 
 ```bash
-PI_CODEX_MODEL=gpt-5.5 pi
+PI_CODEX_MODEL=gpt-6-luna pi
 ```
 
 An unset or blank value uses the default. The extension does not run Codex CLI, so updating CLI does not update its search behavior.

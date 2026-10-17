@@ -4,9 +4,9 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resolveCodexWebProvider } from "../src/auth.ts";
 
 for (const [override, expected] of [
-	[undefined, "gpt-5.5"],
-	["", "gpt-5.5"],
-	["   ", "gpt-5.5"],
+	[undefined, "gpt-6-luna"],
+	["", "gpt-6-luna"],
+	["   ", "gpt-6-luna"],
 	[" gpt-search-custom ", "gpt-search-custom"],
 ] as const) {
 	test(`search model override ${JSON.stringify(override)} resolves to ${expected}`, async (t) => {
@@ -44,6 +44,10 @@ for (const [override, expected] of [
 		assert.equal(provider.token, "test-token");
 		assert.equal(provider.accountId, "acct-test");
 		assert.equal(provider.responsesUrl, model.baseUrl);
+		assert.equal(
+			provider.searchUrl,
+			"https://chatgpt.com/backend-api/codex/alpha/search",
+		);
 		assert.equal(model.id, "gpt-6.1-sol");
 	});
 }

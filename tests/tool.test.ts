@@ -72,15 +72,16 @@ test("executeWebRun uses a separate search model and stores search results for o
 				body: JSON.parse(String(init.body)),
 				headers: Object.fromEntries(new Headers(init.headers).entries()),
 			});
-			const sse = [
-				`data: ${JSON.stringify({ type: "response.output_text.delta", delta: "Result" })}`,
-				"",
-				`data: ${JSON.stringify({ type: "response.output_item.done", item: { content: [{ annotations: [{ type: "url_citation", url: "https://example.com/page", title: "Example" }] }] } })}`,
-				"",
-				"data: [DONE]",
-				"",
-			].join("\n");
-			return new Response(sse, { status: 200 });
+			return Response.json({
+				output: "Result",
+				results: [
+					{
+						ref_id: "turn0search0",
+						url: "https://example.com/page",
+						title: "Example",
+					},
+				],
+			});
 		}
 		requests.push({ url });
 		return new Response(
@@ -105,17 +106,17 @@ test("executeWebRun uses a separate search model and stores search results for o
 			search.text,
 			"Result\n\nSources (use ref_id only for web_run calls; cite URLs in answers):\n- turn0search0: [Example](<https://example.com/page>)",
 		);
-		assert.deepEqual(updates, ["Result", "Result"]);
+		assert.deepEqual(updates, [search.text]);
 		assert.equal(
 			requests[0]?.url,
-			"https://chatgpt.com/backend-api/codex/responses",
+			"https://chatgpt.com/backend-api/codex/alpha/search",
 		);
 		assert.equal(requests[0]?.headers?.["chatgpt-account-id"], "acct-1");
 		assert.match(JSON.stringify(requests[0]?.body), /example/);
 		assert.ok(requests[0]);
 		assert.equal(
 			(requests[0].body as Record<string, unknown>).model,
-			"gpt-5.5",
+			"gpt-6-luna",
 		);
 		assert.doesNotMatch(JSON.stringify(requests[0]?.body), /gpt-6\.1-sol/);
 

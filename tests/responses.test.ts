@@ -5,6 +5,48 @@ import {
 	outputFromSse,
 	outputFromSseStream,
 } from "../src/responses.ts";
+import { outputFromSearchResponse } from "../src/search.ts";
+
+test("alpha/search resolves citation refs and keeps navigation URLs", () => {
+	const output = outputFromSearchResponse({
+		output: "See citeturn7search9 and citeturn7search2.",
+		results: [
+			{ ref_id: "turn7search2", title: "Two", url: "https://example.com/two" },
+			{
+				ref_id: "turn7search9",
+				title: "Nine",
+				url: "https://example.com/nine",
+			},
+		],
+	});
+	assert.ok(
+		output.text.startsWith(
+			"See [Nine](<https://example.com/nine>) and [Two](<https://example.com/two>).",
+		),
+	);
+	assert.deepEqual(
+		output.searchResults.map(({ ref_id, url }) => ({ ref_id, url })),
+		[
+			{ ref_id: "turn7search2", url: "https://example.com/two" },
+			{ ref_id: "turn7search9", url: "https://example.com/nine" },
+		],
+	);
+});
+
+test("alpha/search excludes unsafe URLs and does not guess unresolved citations", () => {
+	const output = outputFromSearchResponse({
+		output_text: "See citeturn0search0.",
+		search_results: [
+			{ ref_id: "turn0search0", url: "javascript:alert(1)" },
+			{ ref_id: "turn0search1", url: "not a URL" },
+		],
+	});
+	assert.deepEqual(output.searchResults, []);
+	assert.doesNotMatch(output.text, /javascript:|/);
+	for (const value of [null, {}, { output: "" }, { output: 123 }]) {
+		assert.throws(() => outputFromSearchResponse(value));
+	}
+});
 
 test("buildResponsesWebSearchRequest creates Codex Responses web search payload", () => {
 	const request = buildResponsesWebSearchRequest(

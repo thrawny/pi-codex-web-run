@@ -10,6 +10,7 @@ export const WEB_RUN_UNSUPPORTED_MESSAGE =
 
 export interface CodexWebProvider {
 	responsesUrl: string;
+	searchUrl: string;
 	model: string;
 	token: string;
 	accountId: string;
@@ -48,6 +49,20 @@ export function resolveCodexResponsesUrl(
 	const base = resolveCodexApiProviderBaseUrl(modelBaseUrl).replace(/\/+$/, "");
 	if (base.endsWith("/codex/responses")) return base;
 	return `${base}/responses`;
+}
+
+export function resolveCodexSearchUrl(
+	modelBaseUrl: string | undefined,
+): string {
+	const normalized = (modelBaseUrl?.trim() || DEFAULT_CODEX_BASE_URL).replace(
+		/\/+$/,
+		"",
+	);
+	if (normalized.endsWith("/alpha/search")) return normalized;
+	const base = normalized.endsWith("/responses")
+		? normalized.slice(0, -"/responses".length)
+		: resolveCodexApiProviderBaseUrl(normalized);
+	return `${base}/alpha/search`;
 }
 
 function headerValue(
@@ -103,6 +118,7 @@ export async function resolveCodexWebProvider(
 		throw new Error("web_run could not resolve ChatGPT account id");
 	return {
 		responsesUrl: resolveCodexResponsesUrl(ctx.model.baseUrl),
+		searchUrl: resolveCodexSearchUrl(ctx.model.baseUrl),
 		model: process.env.PI_CODEX_MODEL?.trim() || DEFAULT_WEB_SEARCH_MODEL,
 		token,
 		accountId,
@@ -113,8 +129,7 @@ export function buildCodexHeaders(provider: CodexWebProvider): Headers {
 	const headers = new Headers();
 	headers.set("Authorization", `Bearer ${provider.token}`);
 	headers.set("ChatGPT-Account-ID", provider.accountId);
-	headers.set("OpenAI-Beta", "responses=experimental");
-	headers.set("accept", "text/event-stream");
+	headers.set("accept", "application/json");
 	headers.set("content-type", "application/json");
 	headers.set("originator", CODEX_ORIGINATOR);
 	headers.set("User-Agent", codexUserAgent());
